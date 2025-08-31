@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perfume Oil Stock Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-50 font-[Inter] p-4 text-gray-800">
+    <div class="max-w-4xl mx-auto bg-white p-6 md:p-10 rounded-3xl shadow-2xl">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-blue-600 leading-tight">Perfume Oil Stock Manager</h1>
+            <p class="mt-2 text-lg text-gray-500">Find, add, and organize your oil collection.</p>
+        </header>
+
+        <!-- Loading Indicator -->
+        <div id="loading-indicator" class="flex justify-center items-center py-4 hidden">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <p class="ml-2 text-blue-500">Loading...</p>
+        </div>
+
+        <div id="status-message" class="hidden"></div>
+        
+        <div class="grid md:grid-cols-2 gap-8">
+            <!-- Search Section -->
+            <section class="bg-slate-50 p-6 rounded-2xl shadow-inner border border-gray-100">
+                <h2 class="text-2xl font-bold mb-4 text-gray-700">Search for an Oil</h2>
+                <form id="search-form" class="space-y-4">
+                    <div>
+                        <input type="text" id="search-query" placeholder="e.g., Lavender" class="w-full p-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <button type="submit" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl transition duration-300">
+                        Search
+                    </button>
+                </form>
+                <div id="search-results" class="mt-6 space-y-3"></div>
+            </section>
+            
+            <!-- Box & Oil Management Section -->
+            <section class="bg-slate-50 p-6 rounded-2xl shadow-inner border border-gray-100">
+                <h2 class="text-2xl font-bold mb-4 text-gray-700">Manage Stock</h2>
+                
+                <!-- Box Dropdown & Delete Button -->
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="flex-grow">
+                        <label for="box-dropdown" class="block text-gray-600 font-semibold mb-2">Select a Box:</label>
+                        <select id="box-dropdown" class="w-full p-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+                    </div>
+                    <button id="delete-box-btn" class="hidden mt-6 bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-xl transition duration-300">
+                        Delete Box
+                    </button>
+                </div>
+
+                <!-- Add Oil Form -->
+                <form id="add-oil-form" class="space-y-4">
+                    <h3 class="text-xl font-semibold text-gray-700">Add New Oil</h3>
+                    <div>
+                        <input type="text" id="oil-name" placeholder="Oil Name" class="w-full p-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <input type="text" id="brand-name" placeholder="Brand Name" class="w-full p-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <!-- Dropdown with existing types and ability to add new ones -->
+                        <input type="text" id="oil-type" placeholder="Oil Type (e.g., Essential)" class="w-full p-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500" list="oil-types-list">
+                        <datalist id="oil-types-list"></datalist>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl transition duration-300">
+                        Add Oil to Box
+                    </button>
+                </form>
+
+                <!-- Oil List -->
+                <div id="oil-list" class="mt-6 space-y-3"></div>
+            </section>
+        </div>
+
+        <hr class="my-10 border-gray-200">
+
+        <!-- Create Box Section -->
+        <section class="bg-slate-50 p-6 rounded-2xl shadow-inner border border-gray-100 mt-8">
+            <h2 class="text-2xl font-bold mb-4 text-gray-700">Create New Box</h2>
+            <form id="create-box-form" class="space-y-4">
+                <input type="text" id="new-box-name" placeholder="Name for the new box (e.g., F6)" class="w-full p-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button type="submit" class="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-6 rounded-xl transition duration-300">
+                    Create Box
+                </button>
+            </form>
+        </section>
+    </div>
+</body>
+
+<script>
+    const GOOGLE_SHEET_ID = '1eHsDK2jdK1LWEm0BOEaS5I3agBZQe38Qvex8yLB0-50';
+    const API_URL_PREFIX = 'https://docs.google.com/spreadsheets/d/';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz1RSmx87rB8mmP2F9F9lzLDiyz-IPjnC70OvlyLaGrXit1yBvsViDZ9vRAHXRZqb_Ctg/exec';
+
+    // UI elements
+    const statusMessageEl = document.getElementById('status-message');
+    const boxDropdown = document.getElementById('box-dropdown');
+    const oilListEl = document.getElementById('oil-list');
+    const addOilForm = document.getElementById('add-oil-form');
+    const searchForm = document.getElementById('search-form');
+    const searchResultsEl = document.getElementById('search-results');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const createBoxForm = document.getElementById('create-box-form');
+    const deleteBoxBtn = document.getElementById('delete-box-btn');
+    const oilTypesListEl = document.getElementById('oil-types-list'); // New element for the type datalist
+
+    let boxesData = {}; // Cache for all fetched boxes data
+
+    // Show messages to the user
+    function showStatus(message, isError = false) {
+        statusMessageEl.textContent = message;
+        statusMessageEl.className = `p-2 mt-4 text-center rounded-lg ${isError ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}`;
+        setTimeout(() => {
+            statusMessageEl.textContent = '';
+            statusMessageEl.className = 'hidden';
+        }, 5000);
+    }
+
+    // Toggle the loading indicator
+    function showLoading(show) {
+        loadingIndicator.classList.toggle('hidden', !show);
+    }
+
+    // Call the Apps Script to perform an action
+    async function callAppsScript(payload) {
+        showLoading(true);
+        try {
+            const response = await fetch(SCRIPT_URL, {
+                method: 'POST',
+                mode: 'cors',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('Error calling Apps Script:', error);
+            showStatus('An error occurred. Please check the console.', true);
+            return { success: false, message: 'An error occurred.' };
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    // Fetch data from the Google Sheet and populate the app
+    async function fetchAllData() {
+        showLoading(true);
+        boxesData = {};
+        boxDropdown.innerHTML = '<option value="">Select a Box</option>';
+        oilListEl.innerHTML = '';
+        searchResultsEl.innerHTML = '';
+
+        try {
+            // Updated list of all sheet names
+            const sheetNames = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'E1', 'E2', 'E3', 'E4', 'FC', 'Flavor'];
+            const uniqueTypes = new Set(); // New set to store unique oil types
+
+            const fetchPromises = sheetNames.map((sheetName) =>
+                fetch(`${API_URL_PREFIX}${GOOGLE_SHEET_ID}/gviz/tq?sheet=${sheetName}&tqx=out:csv`).then(res => res.text())
+                    .then(csvText => {
+                        const lines = csvText.split('\n').slice(1);
+                        const oils = lines.map(line => {
+                            const [brand, name, type] = line.split(',').map(s => s.trim().replace(/^"|"$/g, ''));
+                            if (type) {
+                                uniqueTypes.add(type); // Add type to the set
+                            }
+                            return { brand, name, type };
+                        }).filter(oil => oil.name);
+                        boxesData[sheetName] = { name: sheetName, oils };
+                    })
+                    .catch(e => console.error(`Error fetching sheet ${sheetName}:`, e))
+            );
+
+            await Promise.all(fetchPromises);
+
+            // Populate the box dropdown
+            Object.keys(boxesData).forEach(boxName => {
+                const option = document.createElement('option');
+                option.value = boxName;
+                option.textContent = boxesData[boxName].name;
+                boxDropdown.appendChild(option);
+            });
+            
+            // Populate the oil types datalist
+            oilTypesListEl.innerHTML = '';
+            uniqueTypes.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type;
+                oilTypesListEl.appendChild(option);
+            });
+            
+            showLoading(false);
+            showStatus('Data loaded successfully from Google Sheets!');
+
+        } catch (error) {
+            console.error("Error fetching data:", error);
+            showLoading(false);
+            showStatus("Failed to load data from Google Sheets.", true);
+        }
+    }
+
+    // Render oils for a selected box
+    function renderOils(boxName) {
+        oilListEl.innerHTML = '';
+        if (!boxName) {
+            return;
+        }
+
+        const box = boxesData[boxName];
+        if (!box || !box.oils) {
+            return;
+        }
+
+        box.oils.forEach((oil, index) => {
+            const oilCard = document.createElement('div');
+            oilCard.className = 'bg-slate-100 p-4 rounded-xl shadow-sm mb-2 flex justify-between items-center';
+            oilCard.innerHTML = `
+                <div>
+                    <p class="font-bold text-gray-800">${oil.name}</p>
+                    <p class="text-sm text-gray-600">Brand: ${oil.brand}</p>
+                    <p class="text-sm text-gray-600">Type: ${oil.type}</p>
+                </div>
+                <button onclick="deleteOil('${boxName}', ${index + 2})" class="bg-red-500 hover:bg-red-600 text-white font-bold p-2 rounded-full w-8 h-8 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </button>
+            `;
+            oilListEl.appendChild(oilCard);
+        });
+    }
+
+    // Search for an oil across all boxes
+    async function searchOil(event) {
+        event.preventDefault();
+        searchResultsEl.innerHTML = '';
+        const query = document.getElementById('search-query').value.trim().toLowerCase();
+        if (!query) {
+            showStatus('Please enter a search query.', true);
+            return;
+        }
+
+        showLoading(true);
+        let found = false;
+        
+        for (const boxName in boxesData) {
+            const box = boxesData[boxName];
+            const matchedOils = box.oils.filter(oil => oil.name.toLowerCase().includes(query));
+            if (matchedOils.length > 0) {
+                found = true;
+                matchedOils.forEach(oil => {
+                    const resultCard = document.createElement('div');
+                    resultCard.className = 'bg-green-100 p-4 rounded-xl shadow-sm mb-2';
+                    resultCard.innerHTML = `
+                        <p class="font-bold text-gray-800">${oil.name}</p>
+                        <p class="text-sm text-gray-600">Found in: <span class="font-semibold">${box.name}</span></p>
+                        <p class="text-sm text-gray-600">Brand: ${oil.brand}</p>
+                        <p class="text-sm text-gray-600">Type: ${oil.type}</p>
+                    `;
+                    searchResultsEl.appendChild(resultCard);
+                });
+            }
+        }
+
+        if (!found) {
+            searchResultsEl.innerHTML = `<p class="text-center text-gray-500">No oils found matching "${query}".</p>`;
+        }
+        showLoading(false);
+    }
+    
+    // Add a new oil to a box
+    async function addOil(event) {
+        event.preventDefault();
+        const boxName = boxDropdown.value;
+        const oilName = document.getElementById('oil-name').value.trim();
+        const brandName = document.getElementById('brand-name').value.trim();
+        const oilType = document.getElementById('oil-type').value;
+
+        if (!boxName || !oilName || !brandName || !oilType) {
+            showStatus('Please fill in all oil details.', true);
+            return;
+        }
+
+        const payload = {
+            action: 'addOil',
+            sheetName: boxName,
+            brand: brandName,
+            name: oilName,
+            type: oilType
+        };
+
+        const result = await callAppsScript(payload);
+        if (result.success) {
+            addOilForm.reset();
+            showStatus(result.message);
+            fetchAllData();
+        } else {
+            showStatus(result.message, true);
+        }
+    }
+    
+    // Delete an oil from a box
+    async function deleteOil(boxName, row) {
+        const payload = {
+            action: 'deleteOil',
+            sheetName: boxName,
+            row: row
+        };
+
+        const result = await callAppsScript(payload);
+        if (result.success) {
+            showStatus(result.message);
+            fetchAllData();
+        } else {
+            showStatus(result.message, true);
+        }
+    }
+
+    // Create a new box
+    async function createNewBox(event) {
+        event.preventDefault();
+        const boxName = document.getElementById('new-box-name').value.trim();
+        if (!boxName) {
+            showStatus('Please enter a box name.', true);
+            return;
+        }
+
+        const payload = {
+            action: 'createBox',
+            sheetName: boxName
+        };
+
+        const result = await callAppsScript(payload);
+        if (result.success) {
+            createBoxForm.reset();
+            showStatus(result.message);
+            fetchAllData();
+        } else {
+            showStatus(result.message, true);
+        }
+    }
+    
+    // Delete an entire box
+    async function deleteBox() {
+        const boxName = boxDropdown.value;
+        if (!boxName) {
+            showStatus('Please select a box to delete.', true);
+            return;
+        }
+
+        const payload = {
+            action: 'deleteBox',
+            sheetName: boxName
+        };
+
+        const result = await callAppsScript(payload);
+        if (result.success) {
+            showStatus(result.message);
+            boxDropdown.value = '';
+            renderOils('');
+            fetchAllData();
+        } else {
+            showStatus(result.message, true);
+        }
+    }
+    
+    // Event listeners
+    boxDropdown.addEventListener('change', (e) => {
+        renderOils(e.target.value);
+        deleteBoxBtn.classList.toggle('hidden', e.target.value === '');
+    });
+    createBoxForm.addEventListener('submit', createNewBox);
+    addOilForm.addEventListener('submit', addOil);
+    searchForm.addEventListener('submit', searchOil);
+    deleteBoxBtn.addEventListener('click', deleteBox);
+    
+    // Make function globally accessible for event handlers
+    window.deleteOil = deleteOil;
+
+    // Initial data fetch on page load
+    window.onload = fetchAllData;
+</script>
+</html>
