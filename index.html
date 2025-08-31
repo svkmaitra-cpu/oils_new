@@ -312,6 +312,9 @@
     
     // Delete an oil from a box
     async function deleteOil(boxName, row) {
+        if (!confirm('Are you sure you want to delete this oil? This action cannot be undone.')) {
+            return;
+        }
         const payload = {
             action: 'deleteOil',
             sheetName: boxName,
@@ -356,6 +359,10 @@
         const boxName = boxDropdown.value;
         if (!boxName) {
             showStatus('Please select a box to delete.', true);
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to delete the box "${boxName}"? This action cannot be undone.`)) {
             return;
         }
 
