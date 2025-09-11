@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE: html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -193,7 +193,7 @@
 <body class="bg-gray-50">
     <div class="container">
         <header>
-            <h1 class="header-title">Perfume Oil Stock Search</h1>
+            <h1 class="header-title">Perfume Oil Stock Manager Search</h1>
             <p class="header-subtitle">Find your oils by name, brand, type, or box.</p>
         </header>
 
@@ -233,6 +233,19 @@
     const loadingIndicator = document.getElementById('loading-indicator');
 
     let boxesData = {}; // Cache for all fetched boxes data
+    
+    // Generate the full list of potential sheet names
+    const sheetNames = (() => {
+        const names = [];
+        for (let i = 1; i <= 50; i++) {
+            names.push(`F${i}`);
+        }
+        for (let i = 1; i <= 30; i++) {
+            names.push(`E${i}`);
+        }
+        names.push('FC', 'Flavor');
+        return names;
+    })();
 
     /**
      * Shows a status message to the user.
@@ -242,10 +255,12 @@
     function showStatus(message, isError = false) {
         statusMessageEl.textContent = message;
         statusMessageEl.className = `status-message ${isError ? 'error' : 'success'}`;
-        setTimeout(() => {
-            statusMessageEl.textContent = '';
-            statusMessageEl.className = 'hidden';
-        }, 5000);
+        if (!isError) {
+             setTimeout(() => {
+                statusMessageEl.textContent = '';
+                statusMessageEl.className = 'hidden';
+            }, 5000);
+        }
     }
 
     /**
@@ -264,32 +279,31 @@
         boxesData = {};
 
         try {
-            // Generate sheet names based on a known pattern
-            const sheetNames = [];
-            for (let i = 1; i <= 10; i++) {
-                sheetNames.push(`F${i}`);
-            }
-            for (let i = 1; i <= 4; i++) {
-                sheetNames.push(`E${i}`);
-            }
-            sheetNames.push('FC', 'Flavor');
-
-            const fetchPromises = sheetNames.map((sheetName) =>
+            // Use Promise.allSettled to handle individual failures without stopping the whole process
+            const fetchResults = await Promise.allSettled(sheetNames.map((sheetName) =>
                 fetch(`${API_URL_PREFIX}${GOOGLE_SHEET_ID}/gviz/tq?sheet=${sheetName}&tqx=out:csv`)
-                    .then(res => res.text())
+                    .then(res => {
+                        if (res.status !== 200) {
+                            throw new Error(`Failed to fetch sheet: ${res.statusText}`);
+                        }
+                        return res.text();
+                    })
                     .then(csvText => {
                         const lines = csvText.split('\n').slice(1);
                         const oils = lines.map(line => {
                             const [brand, name, type] = line.split(',').map(s => s.trim().replace(/^"|"$/g, ''));
                             return { brand, name, type };
                         }).filter(oil => oil.name);
-                        boxesData[sheetName] = { name: sheetName, oils };
+                        return { name: sheetName, oils };
                     })
-                    .catch(e => console.error(`Error fetching sheet ${sheetName}:`, e))
-            );
+            ));
 
-            await Promise.all(fetchPromises);
-            
+            fetchResults.forEach((result) => {
+                if (result.status === 'fulfilled') {
+                    boxesData[result.value.name] = result.value;
+                }
+            });
+
             showLoading(false);
             showStatus('Data loaded successfully from Google Sheets!');
 
@@ -314,15 +328,43 @@
         }
 
         showLoading(true);
+        const canonicalQuery = query.toUpperCase();
+
+        // Check for an exact box name match.
+        if (sheetNames.includes(canonicalQuery)) {
+            if (boxesData.hasOwnProperty(canonicalQuery)) {
+                const matchedBox = boxesData[canonicalQuery];
+                if (matchedBox.oils.length > 0) {
+                    matchedBox.oils.forEach(oil => {
+                        const resultCard = document.createElement('div');
+                        resultCard.className = 'search-result';
+                        resultCard.innerHTML = `
+                            <p class="font-bold text-gray-800">${oil.name}</p>
+                            <p>Found in: <span class="font-semibold">${matchedBox.name}</span></p>
+                            <p>Brand: ${oil.brand}</p>
+                            <p>Type: ${oil.type}</p>
+                        `;
+                        searchResultsEl.appendChild(resultCard);
+                    });
+                } else {
+                    searchResultsEl.innerHTML = `<p class="text-center text-gray-500">The box "${matchedBox.name}" is empty.</p>`;
+                }
+            } else {
+                // The box name is valid, but the data was not loaded.
+                searchResultsEl.innerHTML = `<p class="text-center text-gray-500">No box named "${canonicalQuery}" was found.</p>`;
+            }
+            showLoading(false);
+            return; // Exit the function to prevent the general search from running.
+        }
+
+        // If the query is not a specific box name, perform a general search.
         let found = false;
-        
         for (const boxName in boxesData) {
             const box = boxesData[boxName];
             const matchedOils = box.oils.filter(oil => 
                 oil.name.toLowerCase().includes(query) ||
                 oil.brand.toLowerCase().includes(query) ||
-                oil.type.toLowerCase().includes(query) ||
-                boxName.toLowerCase().includes(query)
+                oil.type.toLowerCase().includes(query)
             );
             if (matchedOils.length > 0) {
                 found = true;
@@ -339,10 +381,10 @@
                 });
             }
         }
-
         if (!found) {
             searchResultsEl.innerHTML = `<p class="text-center text-gray-500">No oils found matching "${query}".</p>`;
         }
+
         showLoading(false);
     }
     
