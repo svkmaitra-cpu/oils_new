@@ -261,8 +261,19 @@
      */
     async function fetchAllData() {
         showLoading(true);
+        boxesData = {};
+
         try {
-            const sheetNames = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'E1', 'E2', 'E3', 'E4', 'FC', 'Flavor'];
+            // Generate sheet names based on a known pattern
+            const sheetNames = [];
+            for (let i = 1; i <= 10; i++) {
+                sheetNames.push(`F${i}`);
+            }
+            for (let i = 1; i <= 4; i++) {
+                sheetNames.push(`E${i}`);
+            }
+            sheetNames.push('FC', 'Flavor');
+
             const fetchPromises = sheetNames.map((sheetName) =>
                 fetch(`${API_URL_PREFIX}${GOOGLE_SHEET_ID}/gviz/tq?sheet=${sheetName}&tqx=out:csv`)
                     .then(res => res.text())
