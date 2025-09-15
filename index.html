@@ -303,7 +303,7 @@
         }
 
         showLoading(true);
-        let found = false;
+        let resultCount = 0;
         
         for (const boxName in boxesData) {
             const box = boxesData[boxName];
@@ -313,8 +313,9 @@
                 oil.type.toLowerCase().includes(query) ||
                 boxName.toLowerCase().includes(query)
             );
+            
             if (matchedOils.length > 0) {
-                found = true;
+                resultCount += matchedOils.length;
                 matchedOils.forEach(oil => {
                     const resultCard = document.createElement('div');
                     resultCard.className = 'search-result';
@@ -329,9 +330,16 @@
             }
         }
 
-        if (!found) {
+        const countHeader = document.createElement('h3');
+        countHeader.className = 'section-header';
+        
+        if (resultCount > 0) {
+            countHeader.textContent = `Found ${resultCount} oil${resultCount === 1 ? '' : 's'} matching "${query}":`;
+            searchResultsEl.prepend(countHeader);
+        } else {
             searchResultsEl.innerHTML = `<p class="text-center text-gray-500">No oils found matching "${query}".</p>`;
         }
+        
         showLoading(false);
     }
     
@@ -342,4 +350,3 @@
     window.onload = fetchAllData;
 </script>
 </html>
-
