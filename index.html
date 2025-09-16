@@ -262,7 +262,7 @@
     async function fetchAllData() {
         showLoading(true);
         try {
-            const sheetNames = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9','F10','E1', 'E2', 'E3', 'E4', 'FC', 'Flavor'];
+            const sheetNames = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9','F10','F11','F12','E1', 'E2', 'E3', 'E4', 'FC1', 'FC2', 'Flavor'];
             const fetchPromises = sheetNames.map((sheetName) =>
                 fetch(`${API_URL_PREFIX}${GOOGLE_SHEET_ID}/gviz/tq?sheet=${sheetName}&tqx=out:csv`)
                     .then(res => res.text())
@@ -350,3 +350,4 @@
     window.onload = fetchAllData;
 </script>
 </html>
+
